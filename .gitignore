@@ -1,0 +1,10 @@
+# Logs
+logs
+*.log
+
+bin
+obj
+
+# Editor directories and files
+.vs
+

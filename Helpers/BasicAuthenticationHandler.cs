@@ -1,0 +1,60 @@
+﻿using InterfaceServer.Repos;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
+using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text;
+using System.Text.Encodings.Web;
+
+namespace InterfaceServer.Helpers
+{
+    public class BasicAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+    {
+        private readonly FileTestContext _context;
+        public BasicAuthenticationHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder, ISystemClock clock, FileTestContext context) : base(options, logger, encoder, clock)
+        {
+            this._context = context;
+        }
+
+        protected async override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            if (!Request.Headers.ContainsKey("Authorization"))
+            {
+                return AuthenticateResult.Fail("Загаловок не найден");
+            }
+
+            var headervalue = AuthenticationHeaderValue.Parse(Request.Headers["Authorization"]);
+
+            if (headervalue != null)
+            {
+                var bytes = Convert.FromBase64String(headervalue.Parameter);
+                string credentials = Encoding.UTF8.GetString(bytes);
+
+                string[] array = credentials.Split('.');
+
+                string username = array[0];
+                string password = array[1];
+
+                var user = await this._context.Users.FirstOrDefaultAsync(item=> item.Login == username && item.Password==password);
+
+                if (user != null)
+                {
+                    var claim = new[] { new Claim(ClaimTypes.Name, user.IdUser) };
+                    var idenntity = new ClaimsIdentity(claim, Scheme.Name);
+                    var principal = new ClaimsPrincipal(idenntity);
+                    var ticket = new AuthenticationTicket(principal, Scheme.Name);
+                    return AuthenticateResult.Success(ticket);
+                }
+                else
+                {
+                    return AuthenticateResult.Fail("UnAuthorized");
+                }
+            }
+            else
+            {
+                return AuthenticateResult.Fail("Empty header");
+            }
+        }
+    }
+}
